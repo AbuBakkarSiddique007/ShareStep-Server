@@ -13,12 +13,6 @@ app.use(express.json());
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.p62hq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 
-console.log(uri);
-
-
-console.log(process.env.DB_USER,
-  process.env.DB_PASSWORD);
-
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -29,29 +23,39 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
-    const db = client.db("shareStepDB");
-    const collection = db.collection("posts");
 
-    // Add your API routes here after successful DB connection
-    app.get('/api/posts', async (req, res) => {
-      // Your routes will have access to the collection
+    const db = client.db("shareStepDB");
+    const postCollection = db.collection("volunteerPosts");
+
+    // 1. Create a new volunteer post:
+    app.post('/add-volunteer-post', async (req, res) => {
+      const newPost = req.body;
+      const result = await postCollection.insertOne(newPost);
+      res.send(result);
     });
 
-    console.log("MongoDB Connected");
-  } catch (error) {
-    console.error("Error connecting to MongoDB:", error);
+    // 2. Get all volunteer posts:
+    app.get('/volunteer-posts', async (req, res) => {
+      const posts = await postCollection.find().toArray();
+      res.send(posts);
+    });
+
+
+    // Send a ping to confirm a successful connection
+    await client.db('admin').command({ ping: 1 })
+    console.log(
+      'Pinged your deployment. You successfully connected to MongoDB!'
+    )
+
+
+
+  } finally {
+    // Ensures that the client will close when you finish/error
   }
 }
-
-run().catch(console.dir);
-
-
+run().catch(console.dir)
 app.get('/', (req, res) => {
-  res.send('Hello World from ShareStep!');
-});
+  res.send('Hello from Volunteer Server....')
+})
 
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+app.listen(port, () => console.log(`Server running on port ${port}`))
