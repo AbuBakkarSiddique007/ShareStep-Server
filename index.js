@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -40,6 +40,13 @@ async function run() {
       res.send(posts);
     });
 
+    // 3. Get a single volunteer post by ID:
+    app.get('/volunteer-posts/:id', async (req, res) => {
+      const { id } = req.params;
+      const filter = { _id: new ObjectId  (id) };
+      const post = await postCollection.findOne(filter);
+      res.send(post);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
