@@ -201,7 +201,40 @@ async function run() {
       }
     });
 
+    // 8. Delete a volunteer request by ID and user email
+    app.delete('/volunteer-requests/:id', async (req, res) => {
+      const id = req.params.id;
+      const requesterEmail = req.body.requesterEmail;
 
+      if (!requesterEmail) {
+        return res.status(400).json({ status: 'error', message: 'Requester email is required.' });
+      }
+
+      try {
+        const filter = {
+          _id: new ObjectId(id),
+          volunteerEmail: requesterEmail
+        };
+
+        const result = await volunteerRequestCollection.deleteOne(filter);
+
+        if (result.deletedCount === 0) {
+          return res.json({
+            status: 'error',
+            message: 'Request not found or you are not the owner.'
+          });
+        }
+
+        res.json({
+          status: 'success',
+          message: 'Volunteer request cancelled successfully.'
+        });
+
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 'error', message: 'Failed to cancel volunteer request.' });
+      }
+    });
 
 
     // Send a ping to confirm a successful connection
