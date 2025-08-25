@@ -152,6 +152,24 @@ async function run() {
       }
     });
 
+    // 6. Delete a volunteer post by _id and organizerEmail
+    app.delete('/volunteer-posts/:id', async (req, res) => {
+      const { id } = req.params;
+      const { organizerEmail } = req.body;
+      try {
+        const filter = { _id: new ObjectId(id), organizerEmail };
+        const result = await postCollection.deleteOne(filter);
+        if (result.deletedCount === 0) {
+          return res.json({ status: 'error', message: 'Post not found or you are not the owner.' });
+        }
+        res.json({ status: 'success', message: 'Post deleted successfully.' });
+      } catch (err) {
+        console.error(err);
+        res.json({ status: 'error', message: 'Failed to delete post.' });
+      }
+    });
+
+
 
 
     // Send a ping to confirm a successful connection
