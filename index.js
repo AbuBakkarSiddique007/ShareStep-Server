@@ -30,7 +30,6 @@ async function run() {
     const volunteerRequestCollection = db.collection("volunteerRequests");
 
 
-
     // 1. Create a new volunteer post:
     app.post('/add-volunteer-post', async (req, res) => {
       const newPost = req.body;
@@ -47,8 +46,14 @@ async function run() {
 
     // 2. Get all volunteer posts:
     app.get('/volunteer-posts', async (req, res) => {
-      const { limit, sort } = req.query;
-      let cursor = postCollection.find();
+      const { limit, sort, email } = req.query;
+
+      let filter = {};
+      if (email) {
+        filter.organizerEmail = email;
+      }
+
+      let cursor = postCollection.find(filter);
 
       if (sort === 'deadline') {
         cursor = cursor.sort({ deadline: 1 });
@@ -92,16 +97,30 @@ async function run() {
           return res.json({ status: 'duplicate', message: 'You have already requested to volunteer for this post.' });
         }
 
-        await volunteerRequestCollection.insertOne({ postId: postObjectId, volunteerEmail, ...rest });
+        const post = await postCollection.findOne(
+          {
+            _id: postObjectId,
+            volunteersNeeded:
+            {
+              $gt: 0
+            }
+          });
 
-        const updateResult = await postCollection.updateOne(
-          { _id: postObjectId, volunteersNeeded: { $gt: 0 } },
-          { $inc: { volunteersNeeded: -1 } }
-        );
-
-        if (updateResult.matchedCount === 0) {
+        if (!post) {
           return res.json({ status: 'full', message: 'Post not found or no volunteers needed.' });
         }
+
+        await volunteerRequestCollection.insertOne({ postId: postObjectId, volunteerEmail, ...rest });
+        await postCollection.updateOne(
+          {
+            _id: postObjectId
+          },
+          {
+            $inc: {
+              volunteersNeeded: -1
+            }
+          }
+        );
 
         res.json({ status: 'success', message: 'Your volunteer request was successful!' });
 
@@ -110,6 +129,30 @@ async function run() {
         res.json({ status: 'error', message: 'Sorry, something went wrong while processing your request.' });
       }
     });
+
+
+    // 5. Update a volunteer post by _id and Email:
+    app.put('/volunteer-posts/:id', async (req, res) => {
+      const { id } = req.params;
+      const updateData = req.body;
+      try {
+        delete updateData._id;
+        const filter = {
+          _id: new ObjectId(id),
+          organizerEmail: updateData.organizerEmail
+        };
+        const result = await postCollection.updateOne(filter, { $set: updateData });
+        if (result.matchedCount === 0) {
+          return res.json({ status: 'error', message: 'Post not found or you are not the owner.' });
+        }
+        res.json({ status: 'success', message: 'Post updated successfully.' });
+      } catch (err) {
+        console.error(err);
+        res.json({ status: 'error', message: 'Failed to update post.' });
+      }
+    });
+
+
 
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
