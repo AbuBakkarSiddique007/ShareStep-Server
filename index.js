@@ -170,6 +170,38 @@ async function run() {
     });
 
 
+    // 7. Get all volunteer requests for a user
+    app.get('/volunteer-requests', async (req, res) => {
+      const email = req.query.email;
+
+      if (!email) {
+        return res.status(400).json({ status: 'error', message: 'Email is required.' });
+      }
+
+      try {
+        const requests = await volunteerRequestCollection.find({ volunteerEmail: email }).toArray();
+
+        const result = [];
+        for (const request of requests) {
+          const post = await postCollection.findOne({ _id: request.postId });
+          if (post) {
+            result.push({
+              _id: request._id,
+              postTitle: post.title,
+              organizerName: post.organizerName,
+              status: request.status
+            });
+          }
+        }
+
+        res.json(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: 'error', message: 'Failed to fetch volunteer requests.' });
+      }
+    });
+
+
 
 
     // Send a ping to confirm a successful connection
