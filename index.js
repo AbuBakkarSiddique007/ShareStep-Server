@@ -34,18 +34,32 @@ async function run() {
       res.send(result);
     });
 
+
     // 2. Get all volunteer posts:
     app.get('/volunteer-posts', async (req, res) => {
-      const posts = await postCollection.find().toArray();
+      const { limit, sort } = req.query;
+      let cursor = postCollection.find();
+
+      if (sort === 'deadline') {
+        cursor = cursor.sort({ deadline: 1 });
+      }
+
+      if (limit) {
+        cursor = cursor.limit(Number(limit));
+      }
+
+      const posts = await cursor.toArray();
       res.send(posts);
     });
 
     // 3. Get a single volunteer post by ID:
     app.get('/volunteer-posts/:id', async (req, res) => {
+
       const { id } = req.params;
-      const filter = { _id: new ObjectId  (id) };
+      const filter = { _id: new ObjectId(id) };
       const post = await postCollection.findOne(filter);
       res.send(post);
+
     });
 
     // Send a ping to confirm a successful connection
