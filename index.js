@@ -6,9 +6,25 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
 
+const jwt = require('jsonwebtoken')
+const cookieParser = require('cookie-parser')
+
+const corsOptions = {
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://sharestep-d09c3.web.app",
+    "https://sharestep-d09c3.firebaseapp.com",
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
+}
+
+
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors(corsOptions))
+app.use(express.json())
+app.use(cookieParser())
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.p62hq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -21,17 +37,58 @@ const client = new MongoClient(uri, {
   }
 });
 
+const verifyToken = async (req, res, next) => {
+
+  const token = req.cookies?.token
+  if (!token) return res.status(401).send("Unauthorized")
+  jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+    if (err) {
+      return res.status(403).send("Forbidden")
+    }
+    req.user = decoded
+    next()
+  })
+}
+
 async function run() {
   try {
-
 
     const db = client.db("shareStepDB");
     const postCollection = db.collection("volunteerPosts");
     const volunteerRequestCollection = db.collection("volunteerRequests");
 
+    app.post('/jwt', async (req, res) => {
+      const { email } = req.body
+
+      if (!email) {
+        return res.status(400).send({ error: 'Email is required' })
+      }
+
+      // Create token
+      const token = jwt.sign({ email }, process.env.SECRET_KEY, { expiresIn: '365d' })
+      console.log('JWT created for:', email)
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "Strict",
+      }).send({ success: true })
+    })
+
+    // logOut || Clear token
+    app.get('/logOut', (req, res) => {
+      res.clearCookie('token', {
+        maxAge: 0,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        httpOnly: true
+      })
+      res.send({ success: true })
+    })
+
 
     // 1. Create a new volunteer post:
-    app.post('/add-volunteer-post', async (req, res) => {
+    app.post('/add-volunteer-post', verifyToken, async (req, res) => {
       const newPost = req.body;
       if (typeof newPost.volunteersNeeded === 'string') {
         newPost.volunteersNeeded = parseInt(newPost.volunteersNeeded, 10);
@@ -68,7 +125,7 @@ async function run() {
     });
 
     // 3. Get a single volunteer post by ID:
-    app.get('/volunteer-posts/:id', async (req, res) => {
+    app.get('/volunteer-posts/:id', verifyToken, async (req, res) => {
 
       const { id } = req.params;
       const filter = { _id: new ObjectId(id) };
@@ -132,7 +189,7 @@ async function run() {
 
 
     // 5. Update a volunteer post by _id and Email:
-    app.put('/volunteer-posts/:id', async (req, res) => {
+    app.put('/volunteer-posts/:id', verifyToken, async (req, res) => {
       const { id } = req.params;
       const updateData = req.body;
       try {
@@ -153,7 +210,7 @@ async function run() {
     });
 
     // 6. Delete a volunteer post by _id and organizerEmail
-    app.delete('/volunteer-posts/:id', async (req, res) => {
+    app.delete('/volunteer-posts/:id', verifyToken, async (req, res) => {
       const { id } = req.params;
       const { organizerEmail } = req.body;
       try {
@@ -171,7 +228,7 @@ async function run() {
 
 
     // 7. Get all volunteer requests for a user
-    app.get('/volunteer-requests', async (req, res) => {
+    app.get('/volunteer-requests', verifyToken, async (req, res) => {
       const email = req.query.email;
 
       if (!email) {
@@ -202,7 +259,7 @@ async function run() {
     });
 
     // 8. Delete a volunteer request by ID and user email
-    app.delete('/volunteer-requests/:id', async (req, res) => {
+    app.delete('/volunteer-requests/:id', verifyToken, async (req, res) => {
       const id = req.params.id;
       const requesterEmail = req.body.requesterEmail;
 
@@ -238,7 +295,7 @@ async function run() {
 
 
     // Send a ping to confirm a successful connection
-    await client.db('admin').command({ ping: 1 })
+    // await client.db('admin').command({ ping: 1 })
     console.log(
       'Pinged your deployment. You successfully connected to MongoDB!'
     )
